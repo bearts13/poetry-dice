@@ -1,0 +1,277 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --theme-primary: #1e40af;
+  --theme-secondary: #0ea5e9;
+  --theme-accent: #06b6d4;
+  --theme-bg: #0c4a6e;
+  --theme-surface: #0e7490;
+  --theme-text: #f0f9ff;
+  --theme-text-muted: #7dd3fc;
+  --theme-border: #0369a1;
+}
+
+@layer base {
+  body {
+    font-family: 'Noto Serif SC', 'LXGW WenKai', serif;
+    background-color: var(--theme-bg);
+    color: var(--theme-text);
+    min-height: 100vh;
+    transition: background-color 0.5s ease, color 0.5s ease;
+  }
+}
+
+@layer components {
+  .dice-container {
+    @apply relative;
+  }
+  
+  .dice {
+    @apply w-20 h-20 rounded-xl flex items-center justify-center font-bold text-lg relative overflow-hidden;
+    background: linear-gradient(145deg, var(--theme-surface), var(--theme-bg));
+    box-shadow: 
+      4px 4px 8px rgba(0,0,0,0.25),
+      -2px -2px 4px rgba(255,255,255,0.1),
+      inset 0 1px 0 rgba(255,255,255,0.15);
+    border: 1px solid var(--theme-border);
+    color: var(--theme-text);
+    transition: all 0.3s ease;
+  }
+  
+  .dice::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.2),
+      transparent
+    );
+    transition: left 0.5s ease;
+  }
+  
+  .dice:hover::before {
+    left: 100%;
+  }
+  
+  .word-card {
+    @apply w-20 h-20 rounded-xl flex items-center justify-center font-bold text-lg cursor-grab select-none;
+    background: linear-gradient(145deg, var(--theme-surface), var(--theme-bg));
+    color: var(--theme-text);
+    box-shadow: 2px 2px 6px rgba(0,0,0,0.3);
+    border: 1px solid var(--theme-border);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    user-select: none;
+  }
+  
+  .word-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 4px 8px 16px rgba(0,0,0,0.4);
+    border-color: var(--theme-accent);
+  }
+  
+  .word-card.dragging {
+    opacity: 0.5;
+    cursor: grabbing;
+  }
+  
+  .word-card.ghost {
+    opacity: 0.3;
+  }
+}
+
+@layer utilities {
+  .paper-texture {
+    background-color: var(--theme-bg);
+  }
+}
+
+/* 投掷动画 - 骰子翻转 */
+@keyframes dice-rolling {
+  0% { transform: rotateX(0) rotateY(0); }
+  25% { transform: rotateX(180deg) rotateY(90deg); }
+  50% { transform: rotateX(360deg) rotateY(180deg); }
+  75% { transform: rotateX(540deg) rotateY(270deg); }
+  100% { transform: rotateX(720deg) rotateY(360deg); }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translate(0, 0) rotate(0); }
+  10% { transform: translate(-3px, -2px) rotate(-3deg); }
+  20% { transform: translate(3px, 2px) rotate(3deg); }
+  30% { transform: translate(-2px, 2px) rotate(-2deg); }
+  40% { transform: translate(2px, -2px) rotate(2deg); }
+  50% { transform: translate(-2px, -2px) rotate(-1deg); }
+  60% { transform: translate(2px, 2px) rotate(1deg); }
+  70% { transform: translate(-1px, 1px) rotate(-1deg); }
+  80% { transform: translate(1px, -1px) rotate(1deg); }
+  90% { transform: translate(0, 0) rotate(0); }
+}
+
+.dice-rolling {
+  animation: shake 0.6s linear;
+}
+
+/* 拖拽时的视觉反馈 */
+.drag-over {
+  background: linear-gradient(135deg, var(--theme-accent), var(--theme-secondary)) !important;
+  transform: scale(1.1);
+  box-shadow: 0 0 20px var(--theme-accent);
+}
+
+.drag-line {
+  position: absolute;
+  background: var(--theme-accent);
+  border-radius: 2px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.drag-line-h {
+  height: 3px;
+  width: 100%;
+  top: -8px;
+  left: 0;
+}
+
+.drag-line-v {
+  width: 3px;
+  height: 100%;
+  top: 0;
+  left: -8px;
+}
+
+/* 按钮样式 */
+.btn-primary {
+  @apply px-6 py-3 rounded-lg font-serif text-base transition-all;
+  background: linear-gradient(135deg, var(--theme-primary), var(--theme-secondary));
+  color: var(--theme-text);
+  box-shadow: 2px 2px 8px rgba(0,0,0,0.3);
+  border: 1px solid var(--theme-border);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 4px 4px 12px rgba(0,0,0,0.4);
+}
+
+.btn-secondary {
+  @apply px-4 py-2 rounded-md font-serif text-sm transition-all;
+  background: transparent;
+  color: var(--theme-text-muted);
+  border: 1px solid var(--theme-border);
+}
+
+.btn-secondary:hover {
+  background: var(--theme-surface);
+  color: var(--theme-text);
+}
+
+/* 主题色块 */
+.theme-dot {
+  @apply w-8 h-8 rounded-full cursor-pointer transition-all;
+  border: 2px solid transparent;
+}
+
+.theme-dot:hover {
+  transform: scale(1.15);
+}
+
+.theme-dot.active {
+  border-color: var(--theme-text);
+  box-shadow: 0 0 0 2px var(--theme-accent);
+}
+
+/* 诗歌展示样式 */
+.poem-line {
+  @apply text-2xl leading-relaxed tracking-wider font-serif;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+
+.poem-container {
+  @apply p-8 rounded-2xl;
+  background: linear-gradient(180deg, var(--theme-surface), var(--theme-bg));
+  border: 1px solid var(--theme-border);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+/* 词组编辑区域 */
+.words-editor {
+  min-height: 200px;
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(0,0,0,0.15);
+  border: 1px dashed var(--theme-border);
+}
+
+.poem-line-row {
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--theme-border);
+  position: relative;
+}
+
+.poem-line-row:last-child {
+  border-bottom: none;
+}
+
+.poem-line-row.empty {
+  min-height: 50px;
+}
+
+.line-number {
+  @apply text-xs font-serif mr-2 select-none;
+  color: var(--theme-text-muted);
+  width: 24px;
+  flex-shrink: 0;
+}
+
+.line-content {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  min-height: 40px;
+}
+
+.line-content:empty::before {
+  content: '拖拽词组到这一行...';
+  color: var(--theme-text-muted);
+  opacity: 0.4;
+  font-size: 14px;
+}
+
+.drop-indicator {
+  width: 4px;
+  height: 30px;
+  background: var(--theme-accent);
+  border-radius: 2px;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.action-btn {
+  @apply text-xs px-2 py-1 rounded transition-all font-serif;
+  background: var(--theme-border);
+  color: var(--theme-text-muted);
+}
+
+.action-btn:hover {
+  background: var(--theme-accent);
+  color: var(--theme-text);
+}
