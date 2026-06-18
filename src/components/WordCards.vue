@@ -10,135 +10,54 @@ const draggedWordIndex = ref<number | null>(null);
 const dragOverLine = ref<number | null>(null);
 const dragOverPos = ref<number | null>(null);
 
-const activeWordIndex = ref<number | null>(null);
-const startPos = ref({ x: 0, y: 0 });
-const hasMoved = ref(false);
-const ghostEl = ref<HTMLElement | null>(null);
+const selectedWordIndex = ref<number | null>(null);
 
-function onPointerDown(e: PointerEvent, wordIndex: number) {
-  if (e.pointerType === 'mouse' && e.button !== 0) return;
-  
-  activeWordIndex.value = wordIndex;
-  startPos.value = { x: e.clientX, y: e.clientY };
-  hasMoved.value = false;
-  
-  const target = e.target as HTMLElement;
-  target.setPointerCapture(e.pointerId);
-}
-
-function onPointerMove(e: PointerEvent) {
-  if (activeWordIndex.value === null) return;
-  
-  const dx = Math.abs(e.clientX - startPos.value.x);
-  const dy = Math.abs(e.clientY - startPos.value.y);
-  
-  if (dx > 5 || dy > 5) {
-    if (!hasMoved.value) {
-      hasMoved.value = true;
-      createGhost(activeWordIndex.value);
-    }
-    
-    if (ghostEl.value) {
-      ghostEl.value.style.left = e.clientX + 'px';
-      ghostEl.value.style.top = e.clientY + 'px';
-    }
-    
-    const elements = document.elementsFromPoint(e.clientX, e.clientY);
-    
-    for (const el of elements) {
-      if (el.classList.contains('line-content')) {
-        const lineEl = el.closest('.poem-line-row');
-        if (lineEl) {
-          const lineIndex = parseInt(lineEl.getAttribute('data-line-index') || '0');
-          dragOverLine.value = lineIndex;
-          dragOverPos.value = null;
-          
-          const wordCards = el.querySelectorAll('.word-card.in-line');
-          for (let i = 0; i < wordCards.length; i++) {
-            const rect = wordCards[i].getBoundingClientRect();
-            if (e.clientX < rect.left + rect.width / 2) {
-              dragOverPos.value = i;
-              break;
-            }
-            dragOverPos.value = i + 1;
-          }
-          return;
-        }
-      }
-      
-      if (el.classList.contains('unassigned-container')) {
-        dragOverLine.value = -1;
-        dragOverPos.value = null;
-        return;
-      }
-    }
-    
-    dragOverLine.value = null;
-    dragOverPos.value = null;
+function selectWord(wordIndex: number) {
+  if (selectedWordIndex.value === wordIndex) {
+    selectedWordIndex.value = null;
+  } else {
+    selectedWordIndex.value = wordIndex;
   }
 }
 
-function onPointerUp(e: PointerEvent) {
-  if (activeWordIndex.value === null) return;
+function clickLine(lineIndex: number) {
+  if (selectedWordIndex.value === null) return;
   
-  if (hasMoved.value && dragOverLine.value !== null) {
-    if (dragOverLine.value === -1) {
-      store.removeWordFromLine(activeWordIndex.value);
-    } else {
-      const word = store.diceResults[activeWordIndex.value];
-      if (word.lineIndex === -1) {
-        store.addWordToLine(activeWordIndex.value, dragOverLine.value, dragOverPos.value);
-      } else {
-        store.moveWordInLine(activeWordIndex.value, dragOverLine.value, dragOverPos.value);
-      }
-    }
-  } else if (!hasMoved.value) {
-    const word = store.diceResults[activeWordIndex.value];
+  const word = store.diceResults[selectedWordIndex.value];
+  
+  if (word.lineIndex === -1) {
+    store.addWordToLine(selectedWordIndex.value, lineIndex);
+  } else {
+    store.moveWordInLine(selectedWordIndex.value, lineIndex);
+  }
+  
+  selectedWordIndex.value = null;
+}
+
+function clickWordInLine(lineIndex: number, pos: number) {
+  const wordIndex = lines.value[lineIndex][pos];
+  
+  if (selectedWordIndex.value === wordIndex) {
+    selectedWordIndex.value = null;
+  } else {
+    const word = store.diceResults[wordIndex];
     if (word.lineIndex !== -1) {
-      store.removeWordFromLine(activeWordIndex.value);
+      store.removeWordFromLine(wordIndex);
     }
   }
-  
-  if (ghostEl.value) {
-    ghostEl.value.remove();
-    ghostEl.value = null;
-  }
-  
-  activeWordIndex.value = null;
-  hasMoved.value = false;
-  dragOverLine.value = null;
-  dragOverPos.value = null;
 }
 
-function createGhost(wordIndex: number) {
-  const word = store.diceResults[wordIndex];
-  const ghost = document.createElement('div');
-  ghost.className = 'drag-ghost';
-  ghost.textContent = word.word;
-  ghost.style.cssText = `
-    position: fixed;
-    z-index: 9999;
-    padding: 12px 16px;
-    border-radius: 8px;
-    background: var(--theme-surface);
-    border: 2px solid var(--theme-accent);
-    color: var(--theme-text);
-    font-size: 18px;
-    font-weight: bold;
-    font-family: "Noto Serif SC", serif;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
-    pointer-events: none;
-    opacity: 0.9;
-    transform: translate(-50%, -50%);
-    left: ${startPos.value.x}px;
-    top: ${startPos.value.y}px;
-  `;
-  document.body.appendChild(ghost);
-  ghostEl.value = ghost;
+function addLine() {
+  store.addLine();
+}
+
+function removeLine(lineIndex: number) {
+  store.removeLine(lineIndex);
 }
 
 function onDragStart(e: DragEvent, wordIndex: number) {
   draggedWordIndex.value = wordIndex;
+  selectedWordIndex.value = null;
   if (e.dataTransfer) {
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', String(wordIndex));
@@ -191,29 +110,6 @@ function onDropToUnassigned(e: DragEvent) {
   dragOverLine.value = null;
   dragOverPos.value = null;
 }
-
-function clickWordInLine(lineIndex: number, pos: number) {
-  const wordIndex = lines.value[lineIndex][pos];
-  const word = store.diceResults[wordIndex];
-  
-  if (word.lineIndex !== -1) {
-    store.removeWordFromLine(wordIndex);
-  }
-}
-
-function addLine() {
-  store.addLine();
-}
-
-function removeLine(lineIndex: number) {
-  store.removeLine(lineIndex);
-}
-
-if (typeof window !== 'undefined') {
-  window.addEventListener('pointermove', onPointerMove, { passive: false });
-  window.addEventListener('pointerup', onPointerUp);
-  window.addEventListener('pointercancel', onPointerUp);
-}
 </script>
 
 <template>
@@ -235,11 +131,14 @@ if (typeof window !== 'undefined') {
           v-for="word in unassigned"
           :key="word.order"
           class="word-card unassigned"
-          :class="{ 'dragging': draggedWordIndex === word.order }"
+          :class="{ 
+            'dragging': draggedWordIndex === word.order,
+            'selected': selectedWordIndex === word.order
+          }"
           draggable="true"
           @dragstart="onDragStart($event, word.order)"
           @dragend="onDragEnd"
-          @pointerdown="onPointerDown($event, word.order)"
+          @click="selectWord(word.order)"
         >
           {{ word.word }}
         </span>
@@ -273,8 +172,10 @@ if (typeof window !== 'undefined') {
           :data-line-index="lineIndex"
           :class="{ 
             'drag-over-line': dragOverLine === lineIndex,
+            'can-drop': selectedWordIndex !== null,
             empty: line.length === 0
           }"
+          @click="clickLine(lineIndex)"
         >
           <span class="line-number">{{ lineIndex + 1 }}</span>
           
@@ -290,14 +191,16 @@ if (typeof window !== 'undefined') {
               ></div>
               <span
                 class="word-card in-line"
-                :class="{ 'dragging': draggedWordIndex === wordIndex }"
+                :class="{ 
+                  'dragging': draggedWordIndex === wordIndex,
+                  'selected': selectedWordIndex === wordIndex
+                }"
                 draggable="true"
-                @click="clickWordInLine(lineIndex, pos)"
+                @click.stop="clickWordInLine(lineIndex, pos)"
                 @dragstart="onDragStart($event, wordIndex)"
                 @dragend="onDragEnd"
                 @dragover="onDragOverLine($event, lineIndex, pos)"
                 @drop="onDropToLine($event, lineIndex, pos)"
-                @pointerdown="onPointerDown($event, wordIndex)"
               >
                 {{ store.diceResults[wordIndex]?.word }}
                 <span class="remove-icon">×</span>
@@ -310,13 +213,13 @@ if (typeof window !== 'undefined') {
             ></div>
             
             <div v-if="line.length === 0" class="empty-line-tip">
-              拖拽词组到这里
+              {{ selectedWordIndex !== null ? '点击放入此位置' : '点击上方词组后放入' }}
             </div>
           </div>
           
           <button
             v-if="lines.length > 1"
-            @click="removeLine(lineIndex)"
+            @click.stop="removeLine(lineIndex)"
             class="action-btn"
             title="删除此行"
           >
@@ -327,7 +230,7 @@ if (typeof window !== 'undefined') {
     </div>
     
     <p class="text-center text-xs mt-4 font-serif" style="color: var(--theme-text-muted);">
-      拖拽词组 · 点击行内词组移除
+      {{ selectedWordIndex !== null ? '已选中词组，点击行放入' : '点击词组选中，再点击行放入' }}
     </p>
   </div>
 </template>
@@ -352,15 +255,20 @@ if (typeof window !== 'undefined') {
 }
 
 .word-card.unassigned {
-  cursor: grab;
+  cursor: pointer;
   background: linear-gradient(135deg, var(--theme-surface), var(--theme-bg));
-  touch-action: none;
-  user-select: none;
-  -webkit-user-select: none;
+  transition: all 0.2s;
 }
 
-.word-card.unassigned:active {
-  cursor: grabbing;
+.word-card.unassigned:hover {
+  transform: translateY(-2px);
+}
+
+.word-card.unassigned.selected {
+  background: var(--theme-accent);
+  color: white !important;
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(6, 182, 212, 0.3);
 }
 
 .word-card.unassigned.dragging {
@@ -392,6 +300,13 @@ if (typeof window !== 'undefined') {
   border-radius: 8px;
   background: rgba(0,0,0,0.03);
   border: 1px solid var(--theme-border);
+  transition: all 0.2s;
+}
+
+.poem-line-row:hover,
+.poem-line-row.can-drop {
+  background: rgba(6, 182, 212, 0.05);
+  border-color: var(--theme-accent);
 }
 
 .poem-line-row.drag-over-line {
@@ -417,16 +332,20 @@ if (typeof window !== 'undefined') {
 }
 
 .word-card.in-line {
-  cursor: grab;
+  cursor: pointer;
   background: var(--theme-surface);
   position: relative;
-  touch-action: none;
-  user-select: none;
-  -webkit-user-select: none;
+  transition: all 0.2s;
 }
 
-.word-card.in-line:active {
-  cursor: grabbing;
+.word-card.in-line:hover {
+  transform: translateY(-1px);
+}
+
+.word-card.in-line.selected {
+  background: var(--theme-accent);
+  color: white !important;
+  transform: scale(1.05);
 }
 
 .word-card.in-line.dragging {
@@ -478,14 +397,5 @@ if (typeof window !== 'undefined') {
 
 .action-btn:hover {
   color: #ef4444;
-}
-
-.drag-ghost {
-  animation: ghost-pulse 0.5s ease-in-out infinite alternate;
-}
-
-@keyframes ghost-pulse {
-  from { transform: translate(-50%, -50%) scale(1); }
-  to { transform: translate(-50%, -50%) scale(1.05); }
 }
 </style>
