@@ -10,24 +10,104 @@ const draggedWordIndex = ref<number | null>(null);
 const dragOverLine = ref<number | null>(null);
 const dragOverPos = ref<number | null>(null);
 
-const pointerDownWordIndex = ref<number | null>(null);
-const pointerDownPos = ref({ x: 0, y: 0 });
-const isDragging = ref(false);
+const activeWordIndex = ref<number | null>(null);
+const startPos = ref({ x: 0, y: 0 });
+const hasMoved = ref(false);
 const ghostEl = ref<HTMLElement | null>(null);
-let dragTimer: ReturnType<typeof setTimeout> | null = null;
 
-function startDrag(wordIndex: number) {
-  draggedWordIndex.value = wordIndex;
-  pointerDownWordIndex.value = wordIndex;
+function onPointerDown(e: PointerEvent, wordIndex: number) {
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
   
-  isDragging.value = false;
+  activeWordIndex.value = wordIndex;
+  startPos.value = { x: e.clientX, y: e.clientY };
+  hasMoved.value = false;
   
-  dragTimer = setTimeout(() => {
-    if (pointerDownWordIndex.value === wordIndex) {
-      isDragging.value = true;
-      createGhost(wordIndex);
+  const target = e.target as HTMLElement;
+  target.setPointerCapture(e.pointerId);
+}
+
+function onPointerMove(e: PointerEvent) {
+  if (activeWordIndex.value === null) return;
+  
+  const dx = Math.abs(e.clientX - startPos.value.x);
+  const dy = Math.abs(e.clientY - startPos.value.y);
+  
+  if (dx > 5 || dy > 5) {
+    if (!hasMoved.value) {
+      hasMoved.value = true;
+      createGhost(activeWordIndex.value);
     }
-  }, 100);
+    
+    if (ghostEl.value) {
+      ghostEl.value.style.left = e.clientX + 'px';
+      ghostEl.value.style.top = e.clientY + 'px';
+    }
+    
+    const elements = document.elementsFromPoint(e.clientX, e.clientY);
+    
+    for (const el of elements) {
+      if (el.classList.contains('line-content')) {
+        const lineEl = el.closest('.poem-line-row');
+        if (lineEl) {
+          const lineIndex = parseInt(lineEl.getAttribute('data-line-index') || '0');
+          dragOverLine.value = lineIndex;
+          dragOverPos.value = null;
+          
+          const wordCards = el.querySelectorAll('.word-card.in-line');
+          for (let i = 0; i < wordCards.length; i++) {
+            const rect = wordCards[i].getBoundingClientRect();
+            if (e.clientX < rect.left + rect.width / 2) {
+              dragOverPos.value = i;
+              break;
+            }
+            dragOverPos.value = i + 1;
+          }
+          return;
+        }
+      }
+      
+      if (el.classList.contains('unassigned-container')) {
+        dragOverLine.value = -1;
+        dragOverPos.value = null;
+        return;
+      }
+    }
+    
+    dragOverLine.value = null;
+    dragOverPos.value = null;
+  }
+}
+
+function onPointerUp(e: PointerEvent) {
+  if (activeWordIndex.value === null) return;
+  
+  if (hasMoved.value && dragOverLine.value !== null) {
+    if (dragOverLine.value === -1) {
+      store.removeWordFromLine(activeWordIndex.value);
+    } else {
+      const word = store.diceResults[activeWordIndex.value];
+      if (word.lineIndex === -1) {
+        store.addWordToLine(activeWordIndex.value, dragOverLine.value, dragOverPos.value);
+      } else {
+        store.moveWordInLine(activeWordIndex.value, dragOverLine.value, dragOverPos.value);
+      }
+    }
+  } else if (!hasMoved.value) {
+    const word = store.diceResults[activeWordIndex.value];
+    if (word.lineIndex !== -1) {
+      store.removeWordFromLine(activeWordIndex.value);
+    }
+  }
+  
+  if (ghostEl.value) {
+    ghostEl.value.remove();
+    ghostEl.value = null;
+  }
+  
+  activeWordIndex.value = null;
+  hasMoved.value = false;
+  dragOverLine.value = null;
+  dragOverPos.value = null;
 }
 
 function createGhost(wordIndex: number) {
@@ -50,96 +130,11 @@ function createGhost(wordIndex: number) {
     pointer-events: none;
     opacity: 0.9;
     transform: translate(-50%, -50%);
-    left: ${pointerDownPos.value.x}px;
-    top: ${pointerDownPos.value.y}px;
+    left: ${startPos.value.x}px;
+    top: ${startPos.value.y}px;
   `;
   document.body.appendChild(ghost);
   ghostEl.value = ghost;
-}
-
-function onPointerDown(e: PointerEvent, wordIndex: number) {
-  if (e.pointerType === 'mouse' && e.button !== 0) return;
-  
-  pointerDownPos.value = { x: e.clientX, y: e.clientY };
-  startDrag(wordIndex);
-}
-
-function onPointerMove(e: PointerEvent) {
-  if (!isDragging.value || !ghostEl.value) return;
-  
-  ghostEl.value.style.left = e.clientX + 'px';
-  ghostEl.value.style.top = e.clientY + 'px';
-  
-  const elements = document.elementsFromPoint(e.clientX, e.clientY);
-  
-  for (const el of elements) {
-    if (el.classList.contains('line-content')) {
-      const lineEl = el.closest('.poem-line-row');
-      if (lineEl) {
-        const lineIndex = parseInt(lineEl.getAttribute('data-line-index') || '0');
-        dragOverLine.value = lineIndex;
-        dragOverPos.value = null;
-        
-        const wordCards = el.querySelectorAll('.word-card.in-line');
-        for (let i = 0; i < wordCards.length; i++) {
-          const rect = wordCards[i].getBoundingClientRect();
-          if (e.clientX < rect.left + rect.width / 2) {
-            dragOverPos.value = i;
-            break;
-          }
-          dragOverPos.value = i + 1;
-        }
-        return;
-      }
-    }
-    
-    if (el.classList.contains('unassigned-container')) {
-      dragOverLine.value = -1;
-      dragOverPos.value = null;
-      return;
-    }
-  }
-  
-  dragOverLine.value = null;
-  dragOverPos.value = null;
-}
-
-function onPointerUp(e: PointerEvent) {
-  if (dragTimer) {
-    clearTimeout(dragTimer);
-    dragTimer = null;
-  }
-  
-  if (!isDragging.value) {
-    if (pointerDownWordIndex.value !== null) {
-      const word = store.diceResults[pointerDownWordIndex.value];
-      if (word.lineIndex !== -1) {
-        store.removeWordFromLine(pointerDownWordIndex.value);
-      }
-    }
-  } else if (pointerDownWordIndex.value !== null && dragOverLine.value !== null) {
-    if (dragOverLine.value === -1) {
-      store.removeWordFromLine(pointerDownWordIndex.value);
-    } else {
-      const word = store.diceResults[pointerDownWordIndex.value];
-      if (word.lineIndex === -1) {
-        store.addWordToLine(pointerDownWordIndex.value, dragOverLine.value, dragOverPos.value);
-      } else {
-        store.moveWordInLine(pointerDownWordIndex.value, dragOverLine.value, dragOverPos.value);
-      }
-    }
-  }
-  
-  if (ghostEl.value) {
-    ghostEl.value.remove();
-    ghostEl.value = null;
-  }
-  
-  draggedWordIndex.value = null;
-  pointerDownWordIndex.value = null;
-  isDragging.value = false;
-  dragOverLine.value = null;
-  dragOverPos.value = null;
 }
 
 function onDragStart(e: DragEvent, wordIndex: number) {
@@ -215,7 +210,7 @@ function removeLine(lineIndex: number) {
 }
 
 if (typeof window !== 'undefined') {
-  window.addEventListener('pointermove', onPointerMove);
+  window.addEventListener('pointermove', onPointerMove, { passive: false });
   window.addEventListener('pointerup', onPointerUp);
   window.addEventListener('pointercancel', onPointerUp);
 }
@@ -332,7 +327,7 @@ if (typeof window !== 'undefined') {
     </div>
     
     <p class="text-center text-xs mt-4 font-serif" style="color: var(--theme-text-muted);">
-      长按词组拖拽 · 点击行内词组移除
+      拖拽词组 · 点击行内词组移除
     </p>
   </div>
 </template>
@@ -362,10 +357,6 @@ if (typeof window !== 'undefined') {
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
-}
-
-.word-card.unassigned:hover {
-  transform: translateY(-2px);
 }
 
 .word-card.unassigned:active {
@@ -432,11 +423,6 @@ if (typeof window !== 'undefined') {
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
-}
-
-.word-card.in-line:hover {
-  transform: translateY(-1px);
-  border-color: var(--theme-accent);
 }
 
 .word-card.in-line:active {
