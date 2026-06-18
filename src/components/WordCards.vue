@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useGameStore } from '../stores/gameStore';
 
 const store = useGameStore();
@@ -9,6 +9,12 @@ const unassigned = computed(() => store.unassignedWords);
 const draggedWordIndex = ref<number | null>(null);
 const dragOverLine = ref<number | null>(null);
 const dragOverPos = ref<number | null>(null);
+
+// 移动端触摸拖拽状态
+const touchDragWordIndex = ref<number | null>(null);
+const touchDragGhost = ref<HTMLElement | null>(null);
+const touchStartPos = ref({ x: 0, y: 0 });
+const isTouchDragging = ref(false);
 
 function onDragStart(e: DragEvent, wordIndex: number) {
   draggedWordIndex.value = wordIndex;
@@ -81,6 +87,150 @@ function addLine() {
 function removeLine(lineIndex: number) {
   store.removeLine(lineIndex);
 }
+
+// ========== 移动端触摸拖拽 ==========
+
+function onTouchStart(e: TouchEvent, wordIndex: number) {
+  if (e.touches.length !== 1) return;
+  
+  const touch = e.touches[0];
+  touchDragWordIndex.value = wordIndex;
+  touchStartPos.value = { x: touch.clientX, y: touch.clientY };
+  isTouchDragging.value = false;
+  
+  // 延迟判断是否开始拖拽（避免误触）
+  setTimeout(() => {
+    if (touchDragWordIndex.value === wordIndex) {
+      isTouchDragging.value = true;
+      createTouchGhost(e, wordIndex);
+    }
+  }, 150);
+}
+
+function createTouchGhost(e: TouchEvent, wordIndex: number) {
+  const word = store.diceResults[wordIndex];
+  
+  // 创建幽灵元素
+  const ghost = document.createElement('div');
+  ghost.className = 'touch-drag-ghost';
+  ghost.textContent = word.word;
+  ghost.style.cssText = `
+    position: fixed;
+    z-index: 9999;
+    padding: 12px 16px;
+    border-radius: 8px;
+    background: var(--theme-surface);
+    border: 2px solid var(--theme-accent);
+    color: var(--theme-text);
+    font-size: 18px;
+    font-weight: bold;
+    font-family: "Noto Serif SC", serif;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    pointer-events: none;
+    opacity: 0.9;
+    transform: translate(-50%, -50%);
+  `;
+  
+  const touch = e.touches[0];
+  ghost.style.left = touch.clientX + 'px';
+  ghost.style.top = touch.clientY + 'px';
+  
+  document.body.appendChild(ghost);
+  touchDragGhost.value = ghost;
+}
+
+function onTouchMove(e: TouchEvent) {
+  if (!isTouchDragging.value || !touchDragGhost.value) return;
+  
+  e.preventDefault();
+  
+  const touch = e.touches[0];
+  touchDragGhost.value.style.left = touch.clientX + 'px';
+  touchDragGhost.value.style.top = touch.clientY + 'px';
+  
+  // 检测当前位置落在哪个区域
+  const elements = document.elementsFromPoint(touch.clientX, touch.clientY);
+  
+  // 查找行区域
+  for (const el of elements) {
+    if (el.classList.contains('line-content')) {
+      const lineEl = el.closest('.poem-line-row');
+      if (lineEl) {
+        const lineIndex = parseInt(lineEl.getAttribute('data-line-index') || '0');
+        dragOverLine.value = lineIndex;
+        dragOverPos.value = null;
+        
+        // 检测是否在某个词组上方
+        const wordCards = el.querySelectorAll('.word-card.in-line');
+        for (let i = 0; i < wordCards.length; i++) {
+          const rect = wordCards[i].getBoundingClientRect();
+          if (touch.clientX < rect.left + rect.width / 2) {
+            dragOverPos.value = i;
+            break;
+          }
+          dragOverPos.value = i + 1;
+        }
+        return;
+      }
+    }
+    
+    if (el.classList.contains('unassigned-container')) {
+      dragOverLine.value = -1;
+      dragOverPos.value = null;
+      return;
+    }
+  }
+  
+  dragOverLine.value = null;
+  dragOverPos.value = null;
+}
+
+function onTouchEnd(e: TouchEvent) {
+  if (!isTouchDragging.value) {
+    // 如果没有开始拖拽，当作点击处理
+    if (touchDragWordIndex.value !== null) {
+      const word = store.diceResults[touchDragWordIndex.value];
+      if (word.lineIndex !== -1) {
+        store.removeWordFromLine(touchDragWordIndex.value);
+      }
+    }
+  } else if (touchDragWordIndex.value !== null && dragOverLine.value !== null) {
+    // 完成拖拽
+    if (dragOverLine.value === -1) {
+      store.removeWordFromLine(touchDragWordIndex.value);
+    } else {
+      const word = store.diceResults[touchDragWordIndex.value];
+      if (word.lineIndex === -1) {
+        store.addWordToLine(touchDragWordIndex.value, dragOverLine.value, dragOverPos.value);
+      } else {
+        store.moveWordInLine(touchDragWordIndex.value, dragOverLine.value, dragOverPos.value);
+      }
+    }
+  }
+  
+  // 清理
+  if (touchDragGhost.value) {
+    touchDragGhost.value.remove();
+    touchDragGhost.value = null;
+  }
+  touchDragWordIndex.value = null;
+  isTouchDragging.value = false;
+  dragOverLine.value = null;
+  dragOverPos.value = null;
+}
+
+// 全局监听触摸移动和结束事件
+onMounted(() => {
+  document.addEventListener('touchmove', onTouchMove, { passive: false });
+  document.addEventListener('touchend', onTouchEnd);
+  document.addEventListener('touchcancel', onTouchEnd);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('touchmove', onTouchMove);
+  document.removeEventListener('touchend', onTouchEnd);
+  document.removeEventListener('touchcancel', onTouchEnd);
+});
 </script>
 
 <template>
@@ -106,6 +256,7 @@ function removeLine(lineIndex: number) {
           draggable="true"
           @dragstart="onDragStart($event, word.order)"
           @dragend="onDragEnd"
+          @touchstart="onTouchStart($event, word.order)"
         >
           {{ word.word }}
         </span>
@@ -136,6 +287,7 @@ function removeLine(lineIndex: number) {
           v-for="(line, lineIndex) in lines" 
           :key="lineIndex"
           class="poem-line-row"
+          :data-line-index="lineIndex"
           :class="{ 
             'drag-over-line': dragOverLine === lineIndex,
             empty: line.length === 0
@@ -162,6 +314,7 @@ function removeLine(lineIndex: number) {
                 @dragend="onDragEnd"
                 @dragover="onDragOverLine($event, lineIndex, pos)"
                 @drop="onDropToLine($event, lineIndex, pos)"
+                @touchstart="onTouchStart($event, wordIndex)"
               >
                 {{ store.diceResults[wordIndex]?.word }}
                 <span class="remove-icon">×</span>
