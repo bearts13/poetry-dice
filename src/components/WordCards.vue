@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed } from 'vue';
 import { useGameStore } from '../stores/gameStore';
 
 const store = useGameStore();
@@ -10,11 +10,137 @@ const draggedWordIndex = ref<number | null>(null);
 const dragOverLine = ref<number | null>(null);
 const dragOverPos = ref<number | null>(null);
 
-// 移动端触摸拖拽状态
-const touchDragWordIndex = ref<number | null>(null);
-const touchDragGhost = ref<HTMLElement | null>(null);
-const touchStartPos = ref({ x: 0, y: 0 });
-const isTouchDragging = ref(false);
+const pointerDownWordIndex = ref<number | null>(null);
+const pointerDownPos = ref({ x: 0, y: 0 });
+const isDragging = ref(false);
+const ghostEl = ref<HTMLElement | null>(null);
+let dragTimer: ReturnType<typeof setTimeout> | null = null;
+
+function startDrag(wordIndex: number) {
+  draggedWordIndex.value = wordIndex;
+  pointerDownWordIndex.value = wordIndex;
+  
+  isDragging.value = false;
+  
+  dragTimer = setTimeout(() => {
+    if (pointerDownWordIndex.value === wordIndex) {
+      isDragging.value = true;
+      createGhost(wordIndex);
+    }
+  }, 100);
+}
+
+function createGhost(wordIndex: number) {
+  const word = store.diceResults[wordIndex];
+  const ghost = document.createElement('div');
+  ghost.className = 'drag-ghost';
+  ghost.textContent = word.word;
+  ghost.style.cssText = `
+    position: fixed;
+    z-index: 9999;
+    padding: 12px 16px;
+    border-radius: 8px;
+    background: var(--theme-surface);
+    border: 2px solid var(--theme-accent);
+    color: var(--theme-text);
+    font-size: 18px;
+    font-weight: bold;
+    font-family: "Noto Serif SC", serif;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    pointer-events: none;
+    opacity: 0.9;
+    transform: translate(-50%, -50%);
+    left: ${pointerDownPos.value.x}px;
+    top: ${pointerDownPos.value.y}px;
+  `;
+  document.body.appendChild(ghost);
+  ghostEl.value = ghost;
+}
+
+function onPointerDown(e: PointerEvent, wordIndex: number) {
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  
+  pointerDownPos.value = { x: e.clientX, y: e.clientY };
+  startDrag(wordIndex);
+}
+
+function onPointerMove(e: PointerEvent) {
+  if (!isDragging.value || !ghostEl.value) return;
+  
+  ghostEl.value.style.left = e.clientX + 'px';
+  ghostEl.value.style.top = e.clientY + 'px';
+  
+  const elements = document.elementsFromPoint(e.clientX, e.clientY);
+  
+  for (const el of elements) {
+    if (el.classList.contains('line-content')) {
+      const lineEl = el.closest('.poem-line-row');
+      if (lineEl) {
+        const lineIndex = parseInt(lineEl.getAttribute('data-line-index') || '0');
+        dragOverLine.value = lineIndex;
+        dragOverPos.value = null;
+        
+        const wordCards = el.querySelectorAll('.word-card.in-line');
+        for (let i = 0; i < wordCards.length; i++) {
+          const rect = wordCards[i].getBoundingClientRect();
+          if (e.clientX < rect.left + rect.width / 2) {
+            dragOverPos.value = i;
+            break;
+          }
+          dragOverPos.value = i + 1;
+        }
+        return;
+      }
+    }
+    
+    if (el.classList.contains('unassigned-container')) {
+      dragOverLine.value = -1;
+      dragOverPos.value = null;
+      return;
+    }
+  }
+  
+  dragOverLine.value = null;
+  dragOverPos.value = null;
+}
+
+function onPointerUp(e: PointerEvent) {
+  if (dragTimer) {
+    clearTimeout(dragTimer);
+    dragTimer = null;
+  }
+  
+  if (!isDragging.value) {
+    if (pointerDownWordIndex.value !== null) {
+      const word = store.diceResults[pointerDownWordIndex.value];
+      if (word.lineIndex !== -1) {
+        store.removeWordFromLine(pointerDownWordIndex.value);
+      }
+    }
+  } else if (pointerDownWordIndex.value !== null && dragOverLine.value !== null) {
+    if (dragOverLine.value === -1) {
+      store.removeWordFromLine(pointerDownWordIndex.value);
+    } else {
+      const word = store.diceResults[pointerDownWordIndex.value];
+      if (word.lineIndex === -1) {
+        store.addWordToLine(pointerDownWordIndex.value, dragOverLine.value, dragOverPos.value);
+      } else {
+        store.moveWordInLine(pointerDownWordIndex.value, dragOverLine.value, dragOverPos.value);
+      }
+    }
+  }
+  
+  if (ghostEl.value) {
+    ghostEl.value.remove();
+    ghostEl.value = null;
+  }
+  
+  draggedWordIndex.value = null;
+  pointerDownWordIndex.value = null;
+  isDragging.value = false;
+  dragOverLine.value = null;
+  dragOverPos.value = null;
+}
 
 function onDragStart(e: DragEvent, wordIndex: number) {
   draggedWordIndex.value = wordIndex;
@@ -88,149 +214,11 @@ function removeLine(lineIndex: number) {
   store.removeLine(lineIndex);
 }
 
-// ========== 移动端触摸拖拽 ==========
-
-function onTouchStart(e: TouchEvent, wordIndex: number) {
-  if (e.touches.length !== 1) return;
-  
-  const touch = e.touches[0];
-  touchDragWordIndex.value = wordIndex;
-  touchStartPos.value = { x: touch.clientX, y: touch.clientY };
-  isTouchDragging.value = false;
-  
-  // 延迟判断是否开始拖拽（避免误触）
-  setTimeout(() => {
-    if (touchDragWordIndex.value === wordIndex) {
-      isTouchDragging.value = true;
-      createTouchGhost(e, wordIndex);
-    }
-  }, 150);
+if (typeof window !== 'undefined') {
+  window.addEventListener('pointermove', onPointerMove);
+  window.addEventListener('pointerup', onPointerUp);
+  window.addEventListener('pointercancel', onPointerUp);
 }
-
-function createTouchGhost(e: TouchEvent, wordIndex: number) {
-  const word = store.diceResults[wordIndex];
-  
-  // 创建幽灵元素
-  const ghost = document.createElement('div');
-  ghost.className = 'touch-drag-ghost';
-  ghost.textContent = word.word;
-  ghost.style.cssText = `
-    position: fixed;
-    z-index: 9999;
-    padding: 12px 16px;
-    border-radius: 8px;
-    background: var(--theme-surface);
-    border: 2px solid var(--theme-accent);
-    color: var(--theme-text);
-    font-size: 18px;
-    font-weight: bold;
-    font-family: "Noto Serif SC", serif;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
-    pointer-events: none;
-    opacity: 0.9;
-    transform: translate(-50%, -50%);
-  `;
-  
-  const touch = e.touches[0];
-  ghost.style.left = touch.clientX + 'px';
-  ghost.style.top = touch.clientY + 'px';
-  
-  document.body.appendChild(ghost);
-  touchDragGhost.value = ghost;
-}
-
-function onTouchMove(e: TouchEvent) {
-  if (!isTouchDragging.value || !touchDragGhost.value) return;
-  
-  e.preventDefault();
-  
-  const touch = e.touches[0];
-  touchDragGhost.value.style.left = touch.clientX + 'px';
-  touchDragGhost.value.style.top = touch.clientY + 'px';
-  
-  // 检测当前位置落在哪个区域
-  const elements = document.elementsFromPoint(touch.clientX, touch.clientY);
-  
-  // 查找行区域
-  for (const el of elements) {
-    if (el.classList.contains('line-content')) {
-      const lineEl = el.closest('.poem-line-row');
-      if (lineEl) {
-        const lineIndex = parseInt(lineEl.getAttribute('data-line-index') || '0');
-        dragOverLine.value = lineIndex;
-        dragOverPos.value = null;
-        
-        // 检测是否在某个词组上方
-        const wordCards = el.querySelectorAll('.word-card.in-line');
-        for (let i = 0; i < wordCards.length; i++) {
-          const rect = wordCards[i].getBoundingClientRect();
-          if (touch.clientX < rect.left + rect.width / 2) {
-            dragOverPos.value = i;
-            break;
-          }
-          dragOverPos.value = i + 1;
-        }
-        return;
-      }
-    }
-    
-    if (el.classList.contains('unassigned-container')) {
-      dragOverLine.value = -1;
-      dragOverPos.value = null;
-      return;
-    }
-  }
-  
-  dragOverLine.value = null;
-  dragOverPos.value = null;
-}
-
-function onTouchEnd(e: TouchEvent) {
-  if (!isTouchDragging.value) {
-    // 如果没有开始拖拽，当作点击处理
-    if (touchDragWordIndex.value !== null) {
-      const word = store.diceResults[touchDragWordIndex.value];
-      if (word.lineIndex !== -1) {
-        store.removeWordFromLine(touchDragWordIndex.value);
-      }
-    }
-  } else if (touchDragWordIndex.value !== null && dragOverLine.value !== null) {
-    // 完成拖拽
-    if (dragOverLine.value === -1) {
-      store.removeWordFromLine(touchDragWordIndex.value);
-    } else {
-      const word = store.diceResults[touchDragWordIndex.value];
-      if (word.lineIndex === -1) {
-        store.addWordToLine(touchDragWordIndex.value, dragOverLine.value, dragOverPos.value);
-      } else {
-        store.moveWordInLine(touchDragWordIndex.value, dragOverLine.value, dragOverPos.value);
-      }
-    }
-  }
-  
-  // 清理
-  if (touchDragGhost.value) {
-    touchDragGhost.value.remove();
-    touchDragGhost.value = null;
-  }
-  touchDragWordIndex.value = null;
-  isTouchDragging.value = false;
-  dragOverLine.value = null;
-  dragOverPos.value = null;
-}
-
-// 全局监听触摸移动和结束事件
-onMounted(() => {
-  document.addEventListener('touchmove', onTouchMove, { passive: false });
-  document.addEventListener('touchend', onTouchEnd);
-  document.addEventListener('touchcancel', onTouchEnd);
-});
-
-onUnmounted(() => {
-  document.removeEventListener('touchmove', onTouchMove);
-  document.removeEventListener('touchend', onTouchEnd);
-  document.removeEventListener('touchcancel', onTouchEnd);
-});
 </script>
 
 <template>
@@ -256,7 +244,7 @@ onUnmounted(() => {
           draggable="true"
           @dragstart="onDragStart($event, word.order)"
           @dragend="onDragEnd"
-          @touchstart="onTouchStart($event, word.order)"
+          @pointerdown="onPointerDown($event, word.order)"
         >
           {{ word.word }}
         </span>
@@ -314,7 +302,7 @@ onUnmounted(() => {
                 @dragend="onDragEnd"
                 @dragover="onDragOverLine($event, lineIndex, pos)"
                 @drop="onDropToLine($event, lineIndex, pos)"
-                @touchstart="onTouchStart($event, wordIndex)"
+                @pointerdown="onPointerDown($event, wordIndex)"
               >
                 {{ store.diceResults[wordIndex]?.word }}
                 <span class="remove-icon">×</span>
@@ -344,7 +332,7 @@ onUnmounted(() => {
     </div>
     
     <p class="text-center text-xs mt-4 font-serif" style="color: var(--theme-text-muted);">
-      从上方拖拽词组到下方行内 · 点击行内词组可移除回待选区
+      长按词组拖拽 · 点击行内词组移除
     </p>
   </div>
 </template>
@@ -371,6 +359,9 @@ onUnmounted(() => {
 .word-card.unassigned {
   cursor: grab;
   background: linear-gradient(135deg, var(--theme-surface), var(--theme-bg));
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .word-card.unassigned:hover {
@@ -438,6 +429,9 @@ onUnmounted(() => {
   cursor: grab;
   background: var(--theme-surface);
   position: relative;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .word-card.in-line:hover {
@@ -498,5 +492,14 @@ onUnmounted(() => {
 
 .action-btn:hover {
   color: #ef4444;
+}
+
+.drag-ghost {
+  animation: ghost-pulse 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes ghost-pulse {
+  from { transform: translate(-50%, -50%) scale(1); }
+  to { transform: translate(-50%, -50%) scale(1.05); }
 }
 </style>
