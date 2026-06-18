@@ -22,6 +22,12 @@ const poemLines = computed(() => {
         {{ line || '　' }}
       </p>
     </div>
+    
+    <div v-if="store.author" class="author-line text-right mt-6 pr-4">
+      <span class="font-serif" style="font-size: 0.95rem; color: var(--theme-text-muted);">
+        —— {{ store.author }}
+      </span>
+    </div>
   </div>
 </template>
 

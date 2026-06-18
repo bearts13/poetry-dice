@@ -47,6 +47,7 @@ export const useGameStore = defineStore('game', () => {
   const isRolled = ref(false);
   const isRolling = ref(false);
   const currentTheme = ref<ThemeName>('sky');
+  const author = ref('');
 
   const initialWords = DICE_DATA.map((dice, index) => ({
     diceId: dice.id,
@@ -167,6 +168,10 @@ export const useGameStore = defineStore('game', () => {
     currentTheme.value = themeName;
   }
 
+  function setAuthor(value: string) {
+    author.value = value.trim();
+  }
+
   function resetGame() {
     diceResults.value = initialWords;
     isRolled.value = false;
@@ -175,9 +180,14 @@ export const useGameStore = defineStore('game', () => {
   }
 
   function getPoemText(): string {
-    return lineGroups.value.map(line => 
+    const lines = lineGroups.value.map(line => 
       line.map(idx => diceResults.value[idx]?.word || '').join(' ')
-    ).join('\n');
+    );
+    if (author.value) {
+      lines.push('');
+      lines.push(`—— ${author.value}`);
+    }
+    return lines.join('\n');
   }
 
   return {
@@ -189,6 +199,7 @@ export const useGameStore = defineStore('game', () => {
     orderedWords,
     unassignedWords,
     theme,
+    author,
     rollDice,
     addWordToLine,
     removeWordFromLine,
@@ -196,6 +207,7 @@ export const useGameStore = defineStore('game', () => {
     addLine,
     removeLine,
     setTheme,
+    setAuthor,
     resetGame,
     getPoemText
   };
