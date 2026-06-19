@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { DICE_DATA } from './data/dice'
+import { DICE_SETS, type DiceSetName } from './data/dice'
 import type { DiceResult, ThemeName, Theme } from './types'
 
 export const THEMES: Record<ThemeName, Theme> = {
@@ -28,8 +28,8 @@ export const THEMES: Record<ThemeName, Theme> = {
   },
 }
 
-function rollAll(): DiceResult[] {
-  return DICE_DATA.map(dice => ({
+function rollAll(setName: DiceSetName): DiceResult[] {
+  return DICE_SETS[setName].dice.map(dice => ({
     diceId: dice.id,
     word: dice.faces[Math.floor(Math.random() * dice.faces.length)],
     lineIndex: -1,
@@ -37,21 +37,23 @@ function rollAll(): DiceResult[] {
 }
 
 export const useGameStore = defineStore('game', () => {
-  const dice = ref<DiceResult[]>(rollAll())
+  const dice = ref<DiceResult[]>(rollAll('butterfly'))
   const lines = ref<number[][]>([[], [], []])
   const rolling = ref(false)
   const themeName = ref<ThemeName>('sky')
   const author = ref('')
   const selectedId = ref<number | null>(null)
+  const currentDiceSet = ref<DiceSetName>('butterfly')
 
   const currentTheme = computed(() => THEMES[themeName.value])
+  const diceSetInfo = computed(() => DICE_SETS[currentDiceSet.value])
 
   const unassigned = computed(() => dice.value.filter(d => d.lineIndex === -1))
 
   function rollDice() {
     rolling.value = true
     setTimeout(() => {
-      dice.value = rollAll()
+      dice.value = rollAll(currentDiceSet.value)
       lines.value = [[], [], []]
       rolling.value = false
       selectedId.value = null
@@ -130,8 +132,16 @@ export const useGameStore = defineStore('game', () => {
   function setTheme(name: ThemeName) { themeName.value = name }
   function setAuthor(v: string) { author.value = v.trim() }
 
+  function setDiceSet(setName: DiceSetName) {
+    currentDiceSet.value = setName
+    dice.value = rollAll(setName)
+    lines.value = [[], [], []]
+    rolling.value = false
+    selectedId.value = null
+  }
+
   function reset() {
-    dice.value = rollAll()
+    dice.value = rollAll(currentDiceSet.value)
     lines.value = [[], [], []]
     rolling.value = false
     selectedId.value = null
@@ -150,8 +160,9 @@ export const useGameStore = defineStore('game', () => {
 
   return {
     dice, lines, rolling, themeName, author, selectedId,
+    currentDiceSet, diceSetInfo,
     currentTheme, unassigned,
     rollDice, toggleSelect, placeOnLine, moveInLine, removeFromLine,
-    addLine, removeLine, setTheme, setAuthor, reset, getPoemText,
+    addLine, removeLine, setTheme, setAuthor, setDiceSet, reset, getPoemText,
   }
 })
