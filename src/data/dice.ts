@@ -1,6 +1,6 @@
 import type { Dice } from './types'
 
-export type DiceSetName = 'butterfly' | 'raindrop' | 'internet'
+export type DiceSetName = 'butterfly' | 'raindrop' | 'internet' | 'twolibra'
 
 export const DICE_SETS: Record<DiceSetName, { name: string; dice: Dice[] }> = {
   butterfly: {
@@ -43,6 +43,20 @@ export const DICE_SETS: Record<DiceSetName, { name: string; dice: Dice[] }> = {
       { id: 7, faces: ['转发', '截图', '静音', '退群', '潜水', '三天可见'] },
       { id: 8, faces: ['绝绝子', '离谱', 'yyds', '恋爱脑', '人间清醒', '笑不活了'] },
       { id: 9, faces: ['屏幕光', '凌晨三点', '网线', '头像框', '加载中', '自动关机'] },
+    ],
+  },
+  twolibra: {
+    name: '2Libra',
+    dice: [
+      { id: 1, faces: ['首富', '吉米', '我', '你', '隔壁', '打工人'] },
+      { id: 2, faces: ['与', '或者', '从', '直到', '因为', '为了'] },
+      { id: 3, faces: ['妙笔生花', '回归起点', '多说多写', '无缘', '缝缝补补', '重头再来'] },
+      { id: 4, faces: ['金币', '徽章', '奖励', '潘多拉', '年终奖', '流量密码'] },
+      { id: 5, faces: ['平衡', '签到', '热议', '摸鱼', '加班', '取关'] },
+      { id: 6, faces: ['技艺', '勤勉', '财富', '阅历', '魅力', '幸运'] },
+      { id: 7, faces: ['分享', '浏览', '表态', '打赏', '发布', '投票'] },
+      { id: 8, faces: ['暴富的', '躺平的', '假装的', '卑微的', '神秘的', '自己的'] },
+      { id: 9, faces: ['数字游民', '404', '共享单车', '假装很忙', '财务自由', '马上来'] },
     ],
   },
 }
