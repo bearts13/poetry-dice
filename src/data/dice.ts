@@ -1,6 +1,6 @@
 import type { Dice } from './types'
 
-export type DiceSetName = 'butterfly' | 'raindrop'
+export type DiceSetName = 'butterfly' | 'raindrop' | 'internet'
 
 export const DICE_SETS: Record<DiceSetName, { name: string; dice: Dice[] }> = {
   butterfly: {
@@ -29,6 +29,20 @@ export const DICE_SETS: Record<DiceSetName, { name: string; dice: Dice[] }> = {
       { id: 7, faces: ['寻找', '等待', '忘记', '思念', '逃离', '抵达'] },
       { id: 8, faces: ['柔软的', '破碎的', '寒冷的', '遥远的', '安静的', '模糊的'] },
       { id: 9, faces: ['海', '车站', '窗', '风筝', '路灯', '候鸟'] },
+    ],
+  },
+  internet: {
+    name: '互联网',
+    dice: [
+      { id: 1, faces: ['我们', '网友', '匿名者', '屏幕对面', '打工人', '数字游民'] },
+      { id: 2, faces: ['在吗', '双击', '关注', '点赞', '撤回', '拍了拍'] },
+      { id: 3, faces: ['秒回', '已读不回', '输入中', '正在缓冲', '连接超时', '重新加载'] },
+      { id: 4, faces: ['心动', '上头', '下头', 'emo', 'crush', '破防'] },
+      { id: 5, faces: ['对话框', '朋友圈', '私信', '收藏夹', '草稿箱', '回收站'] },
+      { id: 6, faces: ['404', '502', '信号弱', 'WiFi已连', '流量不足', '电量1%'] },
+      { id: 7, faces: ['转发', '截图', '静音', '退群', '潜水', '三天可见'] },
+      { id: 8, faces: ['绝绝子', '离谱', 'yyds', '恋爱脑', '人间清醒', '笑不活了'] },
+      { id: 9, faces: ['屏幕光', '凌晨三点', '网线', '头像框', '加载中', '自动关机'] },
     ],
   },
 }
