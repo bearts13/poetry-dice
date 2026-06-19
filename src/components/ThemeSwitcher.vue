@@ -1,44 +1,40 @@
 <script setup lang="ts">
-import { useGameStore, THEMES, type ThemeName } from '../stores/gameStore';
+import { useGameStore, THEMES } from '../store'
 
-const store = useGameStore();
+const store = useGameStore()
+const themeEntries = (Object.entries(THEMES) as [string, typeof THEMES.sky][])
 
-function selectTheme(themeName: ThemeName) {
-  store.setTheme(themeName);
+function selectTheme(name: 'sky' | 'ocean') {
+  store.setTheme(name)
 }
 </script>
 
 <template>
-  <div class="theme-switcher flex items-center gap-3">
+  <div class="flex items-center gap-2">
     <span class="text-xs font-serif" style="color: var(--theme-text-muted);">主题</span>
     <div class="flex gap-2">
-      <div
-        v-for="(theme, key) in THEMES"
+      <button
+        v-for="[key, t] in themeEntries"
         :key="key"
-        class="theme-option relative"
-        :title="theme.name"
-      >
-        <div
-          class="theme-dot"
-          :class="{ active: store.currentTheme === key }"
-          :style="{
-            background: `linear-gradient(135deg, ${theme.primary}, ${theme.secondary})`
-          }"
-          @click="selectTheme(key as ThemeName)"
-        ></div>
-        <span 
-          class="theme-name absolute -bottom-5 left-1/2 -translate-x-1/2 text-xs font-serif whitespace-nowrap opacity-0 transition-opacity"
-          style="color: var(--theme-text-muted);"
-        >
-          {{ theme.name }}
-        </span>
-      </div>
+        class="theme-dot"
+        :class="{ active: store.themeName === key }"
+        :style="{ background: `linear-gradient(135deg, ${t.primary}, ${t.secondary})` }"
+        :title="t.name"
+        @click="selectTheme(key as 'sky' | 'ocean')"
+      ></button>
     </div>
   </div>
 </template>
 
 <style scoped>
-.theme-option:hover .theme-name {
-  opacity: 1;
+.theme-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s;
 }
+.theme-dot:hover { transform: scale(1.15); }
+.theme-dot.active { border-color: var(--theme-text); box-shadow: 0 0 0 2px var(--theme-accent); }
 </style>

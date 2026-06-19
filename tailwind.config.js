@@ -7,7 +7,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        serif: ['Noto Serif SC', 'LXGW WenKai', 'serif'],
+        serif: ['"Noto Serif SC"', '"LXGW WenKai"', 'serif'],
       },
     },
   },
