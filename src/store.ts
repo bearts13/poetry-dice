@@ -26,6 +26,17 @@ export const THEMES: Record<ThemeName, Theme> = {
     textMuted: '#7dd3fc',
     border: '#0369a1',
   },
+  cyberpunk: {
+    name: '赛博',
+    primary: '#ec4899',
+    secondary: '#06b6d4',
+    accent: '#8b5cf6',
+    bg: '#0c0a1a',
+    surface: '#1e1b3a',
+    text: '#f0f9ff',
+    textMuted: '#a5b4fc',
+    border: '#6366f1',
+  },
 }
 
 function rollAll(setName: DiceSetName): DiceResult[] {

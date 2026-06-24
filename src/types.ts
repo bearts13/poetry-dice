@@ -9,7 +9,7 @@ export interface DiceResult {
   lineIndex: number  // -1 = unassigned
 }
 
-export type ThemeName = 'sky' | 'ocean'
+export type ThemeName = 'sky' | 'ocean' | 'cyberpunk'
 
 export interface Theme {
   name: string
